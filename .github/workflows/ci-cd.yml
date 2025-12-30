@@ -1,0 +1,174 @@
+name: Java CI/CD Pipeline
+
+# Триггеры: при каждом пуше и PR в main
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Ручной запуск
+
+jobs:
+  # 1. Сборка и тестирование на Ubuntu
+  build-linux:
+    name: Build on Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Build with Maven
+        run: mvn clean compile
+
+      - name: Run tests
+        run: mvn test
+
+      - name: Package JAR
+        run: mvn package -DskipTests
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: java-app-linux
+          path: target/*.jar
+
+  # 2. Сборка и тестирование на Windows
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'microsoft'
+
+      - name: Build with Maven
+        run: mvn clean compile
+
+      - name: Run tests
+        run: mvn test
+
+      - name: Verify Windows-specific
+        run: |
+          echo "Build completed on Windows"
+          dir target\*.jar
+
+  # 3. Сборка и тестирование на macOS Intel
+  build-macos-intel:
+    name: Build on macOS (Intel)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'zulu'
+
+      - name: Build with Maven
+        run: mvn clean compile
+
+      - name: Run tests
+        run: mvn test
+
+      - name: Verify macOS build
+        run: |
+          echo "Build completed on macOS Intel"
+          ls -la target/*.jar
+
+  # 4. Сборка и тестирование на macOS ARM (Apple Silicon)
+  build-macos-arm:
+    name: Build on macOS (ARM)
+    runs-on: macos-14  # Apple Silicon
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'zulu'
+
+      - name: Detect architecture
+        run: |
+          echo "Running on: $(uname -m)"
+          echo "This is Apple Silicon (ARM) runner"
+
+      - name: Build with Maven
+        run: mvn clean compile
+
+      - name: Run tests
+        run: mvn test
+
+  # 5. Деплой (зависит от успеха всех сборок)
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows, build-macos-intel, build-macos-arm]
+
+    # Только при пуше в main (не при PR)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: java-app-linux
+
+      - name: List downloaded files
+        run: ls -la
+
+      - name: Simulate deployment process
+        run: |
+          echo "🚀 STARTING DEPLOYMENT PROCESS"
+          echo "================================"
+          echo "Application: java-ci-cd-demo"
+          echo "Version: 1.0.0"
+          echo "Build triggered by: ${{ github.actor }}"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          echo "📦 Deployment steps:"
+          echo "1. Validation: ✅ All 4 platform builds successful"
+          echo "2. Packaging: JAR file ready"
+          echo "3. Transfer: Uploading to server..."
+          echo "4. Backup: Creating backup of previous version"
+          echo "5. Deployment: Replacing application files"
+          echo "6. Verification: Health check"
+          echo "7. Cleanup: Removing temporary files"
+          echo ""
+          echo "✅ DEPLOYMENT COMPLETED SUCCESSFULLY"
+          echo "Application is now live!"
+
+      - name: Create deployment report
+        run: |
+          echo "Deployment Report" > report.md
+          echo "=================" >> report.md
+          echo "" >> report.md
+          echo "- Date: $(date)" >> report.md
+          echo "- Status: SUCCESS" >> report.md
+          echo "- Platforms: Linux, Windows, macOS Intel, macOS ARM" >> report.md
+          echo "- Tests: All passed" >> report.md
+          echo "- Artifact: java-ci-cd-demo-1.0-SNAPSHOT.jar" >> report.md
+
+      - name: Upload deployment report
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-report
+          path: report.md
